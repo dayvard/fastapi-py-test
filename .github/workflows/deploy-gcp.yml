@@ -1,0 +1,59 @@
+name: Deploy Python App to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main # O la rama que uses para producción
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write' # Necesario para la autenticación con GCP
+
+    env:
+      GCP_REGION: us-west1
+      GAR_REPOSITORY: nodejs-artifacts # Nombre del repositorio en Artifact Registry
+      CLOUD_RUN_SERVICE: fastapi-py-test # Nombre del servicio en Cloud Run
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }} # Secreto con el JSON de la cuenta de servicio
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }} # Secreto con el ID del proyecto GCP
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build Docker image
+        id: build-image
+        run: |
+          IMAGE_TAG=${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.CLOUD_RUN_SERVICE }}:${{ github.sha }}
+          docker build -t $IMAGE_TAG .
+          echo "IMAGE_NAME=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Push Docker image to Artifact Registry
+        run: docker push ${{ steps.build-image.outputs.IMAGE_NAME }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ steps.build-image.outputs.IMAGE_NAME }}
+          # Opcional: Especifica otras configuraciones de Cloud Run aquí
+          # flags: '--allow-unauthenticated'
+
+      - name: Show Cloud Run URL
+        run: echo "Deployed to: ${{ steps.deploy.outputs.url }}"
