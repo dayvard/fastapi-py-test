@@ -4,6 +4,8 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app/
 
+ENV PORT=8080
+
 # Install uv
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /bin/
@@ -31,7 +33,7 @@ ENV PYTHONPATH=/app
 
 COPY ./scripts /app/scripts
 
-COPY ./pyproject.toml ./uv.lock ./alembic.ini /app/
+COPY ./pyproject.toml ./uv.lock ./alembic.ini ./.env /app/
 
 COPY ./app /app/app
 
@@ -40,4 +42,6 @@ COPY ./app /app/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
-CMD ["fastapi", "run", "--workers", "4", "app/main.py"]
+# Use the PORT environment variable provided by Cloud Run (defaults to 8080)
+# Pass --host 0.0.0.0 to listen on all available network interfaces inside the container
+CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "$PORT", "--workers", "4", "app/main.py"]
