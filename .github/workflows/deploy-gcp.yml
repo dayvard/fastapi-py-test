@@ -56,4 +56,5 @@ jobs:
           # flags: '--allow-unauthenticated'
 
       - name: Show Cloud Run URL
-        run: echo "Deployed to: ${{ steps.deploy.outputs.url }}"
+        run: |
+          echo "Deployed to: ${{ steps.deploy.outputs.url }}"
